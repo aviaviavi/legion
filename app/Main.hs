@@ -6,111 +6,134 @@
 module Main where
 
 import           Web.Spock
-import Web.Spock
 import           Web.Spock.Config
 
-import           Control.Arrow
+import           Control.Concurrent               (threadDelay)
+import           Control.Concurrent.Async
+import qualified Control.Distributed.Backend.P2P  as P2P
+import           Control.Distributed.Process
+import           Control.Distributed.Process.Node
+import           Control.Monad                    (forever)
 import           Control.Monad.Trans
-import           Crypto.Hash.SHA256
--- import           Data.Aeson
+import           Control.Monad.Trans.Either
 import           Data.IORef
-import           Data.Monoid
-import           Data.Time.Clock.POSIX
--- import           GHC.Generics
-import qualified Data.Text             as T
-import Data.ByteString.Char8 (pack, unpack)
-import qualified Data.ByteString.Internal as Internal
+import qualified Data.Text                        as T
+import           GHC.Generics
+import           Lib
+import           System.Environment               (getArgs)
+import           System.Log.Logger
+import System.Log.Handler.Syslog
+import System.Log.Handler.Simple
+import System.Log.Handler (setFormatter, LogHandler)
+import System.Log.Formatter
+import System.IO (getLine, stdout)
+import GHC.IO.Handle
 
+type Chain = [Block]
 data MySession = EmptySession
-newtype MyAppState = DummyAppState (IORef Int)
-newtype BlockChainState = BlockChain (IORef [Block])
+data BlockChainState = BlockChainState { blockChainState :: IORef [Block]
+                                       , node            :: LocalNode
+                                       , pid             :: ProcessId
+                                       } deriving (Generic)
 
-data Block = Block { index        :: Int
-                   , previousHash :: String
-                   , timestamp    :: Int
-                   , blockData    :: String
-                   , blockHash    :: String
-                   } deriving (Show)
+seedport :: String
+seedport = "9001"
+serviceName :: String
+serviceName = "legionservice"
 
--- newtype BlockArgs = BlockArgs{blockBody :: T.Text}
---                   deriving (Show, Eq, Generic)
-
--- instance ToJSON BlockArgs
--- instance FromJSON BlockArgs
-
-epoch :: IO Int
-epoch = round `fmap` getPOSIXTime
-
-hashString :: String -> String
-hashString = unpack . hash . pack
-
-calculateBlockHash :: Block -> String
-calculateBlockHash (Block i p t b _)  = concatMap hashString [show i, p, show t, b]
-
-addHashToBlock :: Block -> Block
-addHashToBlock block = block { blockHash = calculateBlockHash block }
-
-initialBlock :: IO Block
-initialBlock = do
-  time <- epoch
-  let block = Block 0 "0" time "initial data" ""
-  return $ block { blockHash = calculateBlockHash block }
+appendSeedPort :: String -> [NodeId]
+appendSeedPort thisPort =
+  if thisPort == seedport then
+    []
+  else
+    [P2P.makeNodeId $ "localhost:" ++ seedport]
 
 getBlockChain :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m [Block]
 getBlockChain  = do
-  (BlockChain ref) <- getState
-  liftIO $ atomicModifyIORef' ref $ \b -> (b, b)
+  (BlockChainState chain _ _) <- getState
+  liftIO $ atomicModifyIORef' chain $ \b -> (b, b)
 
 getLatestBlock :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m Block
-getLatestBlock = fmap Prelude.head getBlockChain
-
-isValidNewBlock :: Block -> Block -> Bool
-isValidNewBlock prev next
-  | index prev + 1 == index next &&
-    blockHash prev == previousHash next &&
-    blockHash next == calculateBlockHash next = True
-  | otherwise = False
+getLatestBlock = fmap last getBlockChain
 
 addBlock :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => Block -> m ()
 addBlock block = do
-  (BlockChain ref) <- getState
-  _ <- liftIO $ atomicModifyIORef' ref $ \b -> ((block:b), (block:b))
+  (BlockChainState ref _ _) <- getState
+  _ <- liftIO $ atomicModifyIORef' ref $ \b -> (b ++ [block], b ++ [block])
   return ()
 
 mineBlock :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => String -> m Block
 mineBlock stringData = do
-  time <- liftIO epoch
   lastBlock <- getLatestBlock
-  return . addHashToBlock $ Block { index        = index lastBlock + 1
-                                  , previousHash = blockHash lastBlock
-                                  , timestamp    = time
-                                  , blockData    = stringData
-                                  , blockHash    = "will be changed"
-                                  }
+  mineBlockFrom lastBlock stringData
+
+replaceChain :: MonadIO m => LocalNode -> IORef [Block] -> [Block] -> m ()
+replaceChain node chainRef newChain = do
+  liftIO $ debugM "legion" "replaced chain called"
+  currentChain <- liftIO $ readIORef chainRef
+  if (not . isValidChain $ newChain) || (length currentChain >= length newChain)
+    then do
+      liftIO $ debugM "legion" ("chain is not valid for updating!: " ++ (show newChain))
+    else do
+      setChain <- liftIO $ atomicModifyIORef' chainRef $ \c -> (newChain, newChain)
+      liftIO $ debugM "legion" "chain replaced"
+      updatedChain <- liftIO $ readIORef chainRef
+      liftIO $ debugM "legion" ("updated chain: " ++ show updatedChain)
+
+runP2P host port = P2P.bootstrapNonBlocking host port (appendSeedPort port) initRemoteTable
+
+initLogger :: IO ()
+initLogger = let priority = DEBUG
+                 format = \lh -> return $ setFormatter lh (simpleLogFormatter "[$time : $loggername : $prio] $msg")
+  in do
+    s <- streamHandler stdout priority >>= format
+    h <- fileHandler "legion.log" priority >>= format
+    updateGlobalLogger rootLoggerName $ (setLevel priority) . (setHandlers [s])
 
 main :: IO ()
 main = do
+  _ <- initLogger
+  debugM "legion" "starting"
+  [host, port] <- getArgs
+  (node, pid) <- runP2P host port (return ())
   genesis <- initialBlock
   ref <- newIORef [genesis]
-  spockCfg <- defaultSpockCfg EmptySession PCNoDatabase (BlockChain ref)
-  runSpock 8080 (spock spockCfg Main.app)
+  spockCfg <- defaultSpockCfg EmptySession PCNoDatabase (BlockChainState ref node pid)
+  _ <- async $ runSpock ((read port :: Int) - 1000) (spock spockCfg Main.app)
+  runProcess node $ do
+    getSelfPid >>= register serviceName
+    forever $ do
+      liftIO $ threadDelay 1000000 -- give dispatcher a second to discover other nodes
+      -- eitherReplaced <- return $ replaceChain broadcastedChain
+      -- case eitherReplaced of
+      --   Left err -> eturn $ debugM "legion" err
+      --   Right newChain -> return $ debugM "legion" "got a new chain and updated ours!"
+
+      (broadcastedChain :: Maybe [Block]) <- expectTimeout 1000000 :: (Process (Maybe [Block]))
+      case broadcastedChain of
+        Just chain -> do
+          liftIO $ debugM "legion" $ "got some stuff: " ++ (show chain)
+          replaceChain node ref chain
+        Nothing -> do
+          liftIO $ debugM "legion" "waiting for p2p input"
 
 app :: SpockM () MySession BlockChainState ()
 app = do
   get root $
     text "Hello World!"
-  get ("block" <//> var) $ \(blockString :: String) -> do
-    block <- mineBlock blockString
+  post "block" $ do
+    (BlockChainState _ node _) <- getState
+    (blockString :: BlockArgs) <- jsonBody'
+    liftIO $ debugM "legion" $ show blockString
+    block <- mineBlock . blockBody $ blockString
     _ <- addBlock block
     chain <- getBlockChain
+    liftIO $ debugM "legion" $ show chain
+    liftIO $ runProcess node $ do
+      liftIO $ debugM "legion" "about to send some stuff"
+      P2P.nsendCapable serviceName chain
+      liftIO $ debugM "legion" "sent data"
     text . T.pack . show $ chain
   get "chain" $ do
     chain <- getBlockChain
     text . T.pack . show $ chain
-  -- post "block" $ do
-  --   blockBody <- body
-  --   addBlock mineBlock
-       -- get ("hello" <//> var) $ \name ->
-       --     do (BlockChain ref) <- getState
-       --        visitorNumber <- liftIO $ atomicModifyIORef' ref $ \i -> (i+1, i+1)
-       --        text ("Hello " <> name <> ", you are visitor number " <> T.pack (show visitorNumber))
