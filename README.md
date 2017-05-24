@@ -3,7 +3,8 @@
 A simple blockchain server inspired by naivechain, written in Haskell. Spinning up several
 Legion nodes creates a peer to peer network that syncronizes the block chain across the network. 
 
-Prereqs: stack
+Prereqs: To compile from source, you'll need [stack](https://docs.haskellstack.org/en/stable/README/).
+Alternatively, you can get a precompiled [pre-release binary](https://github.com/aviaviavi/legion).
 
 Usage:
 
