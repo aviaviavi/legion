@@ -10,14 +10,15 @@ tests = testGroup "Tests" [unitTests]
 
 unitTests :: TestTree
 unitTests =
-  testGroup "Unit tests" [testCase "valid chain" $ testValidChain]
+  testGroup "Unit tests" [testCase "valid chain" testValidChain]
 
 testValidChain :: IO ()
 testValidChain  = do
   print "running test!"
   b <- initialBlock
-  assertBool "empty chains are valid" $ isValidChain []
-  assertBool "base chain is valid" $ isValidChain [b]
-  assertBool "two init blocks are invalid" $ not . isValidChain $ [b, b]
+  assertBool "block eq" $ b == b
+  assertBool "empty chains are valid" $ isValidChain b []
+  assertBool "base chain is valid" $ isValidChain b [b]
+  assertBool "two init blocks are invalid" $ not $ isValidChain  b [b, b]
   goodBlock <- mineBlockFrom b "asdfasdf"
-  assertBool "actually good chain" $ isValidChain [b, goodBlock]
+  assertBool "actually good chain" $ isValidChain b [b, goodBlock]

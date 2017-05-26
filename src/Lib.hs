@@ -13,13 +13,15 @@ import           Data.Time.Clock.POSIX
 import           GHC.Generics
 import Data.Binary
 
+-- the main data type for our blockchain
 data Block = Block { index        :: Int
                    , previousHash :: String
                    , timestamp    :: Int
                    , blockData    :: String
                    , blockHash    :: String
-                   } deriving (Show, Generic)
+                   } deriving (Show, Eq, Generic)
 
+-- http params to add a block to the chain
 newtype BlockArgs = BlockArgs{blockBody :: String}
                   deriving (Show, Eq, Generic)
 
@@ -27,6 +29,7 @@ instance ToJSON BlockArgs
 instance FromJSON BlockArgs
 instance Binary Block
 
+-- unix timestamp as an int
 epoch :: IO Int
 epoch = round `fmap` getPOSIXTime
 
@@ -36,15 +39,22 @@ hashString = unpack . hash . pack
 calculateBlockHash :: Block -> String
 calculateBlockHash (Block i p t b _)  = concatMap hashString [show i, p, show t, b]
 
+-- returns a copy of the block with the hash set
 addHashToBlock :: Block -> Block
 addHashToBlock block = block { blockHash = calculateBlockHash block }
 
+-- a hardcoded initial block, we need this to make sure all
+-- nodes have the same starting point, so we have a hard coded
+-- frame of reference to detect validity
 initialBlock :: IO Block
 initialBlock = do
   time <- epoch
   let block = Block 0 "0" time "initial data" ""
   return $ block { blockHash = calculateBlockHash block }
 
+-- a new block is valid if its index is 1 higher, its
+-- previous hash points to our last block, and its hash is computed
+-- correctly
 isValidNewBlock :: Block -> Block -> Bool
 isValidNewBlock prev next
   | index prev + 1 == index next &&
@@ -52,15 +62,19 @@ isValidNewBlock prev next
     blockHash next == calculateBlockHash next = True
   | otherwise = False
 
-isValidChain :: [Block] -> Bool
-isValidChain chain = case chain of
+-- a chain is valid if it starts with our hardcoded initial
+-- block and every block is valid with respect to the previous
+isValidChain :: Block -> [Block] -> Bool
+isValidChain initial chain = case chain of
   [] -> True
-  [_] -> True
+  [x] -> x == initial
   (x:xs) ->
-    let next = Prelude.head xs in
-      isValidNewBlock x next &&
-      isValidChain xs
+    let blockPairs = zip chain xs in
+      x == initial &&
+      all (uncurry isValidNewBlock) blockPairs
 
+
+-- return the next block given a previous block and some data to put in it
 mineBlockFrom :: (MonadIO m) => Block -> String -> m Block
 mineBlockFrom lastBlock stringData = do
   time <- liftIO epoch

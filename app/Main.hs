@@ -43,19 +43,22 @@ data MainArgs = MainArgs { httpPort  :: String
 data BlockUpdate = UpdateData Block | ReplaceData [Block] | RequestChain deriving (Generic)
 instance B.Binary BlockUpdate
 
-liftDebug :: (MonadIO m, Show a) => a -> m ()
+liftDebug :: (MonadIO m) => String -> m ()
 liftDebug str = liftIO $ debugM "legion" (show str)
 p2pServiceName :: String
 p2pServiceName = "updateservice"
 
+-- retrive the current block chain
 getBlockChain :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m [Block]
-getBlockChain  = do
+getBlockChain = do
   (BlockChainState chain _ _) <- getState
-  liftIO $ atomicModifyIORef' chain $ \b -> (b, b)
+  liftIO $ readIORef chain
 
+-- retrive the most recent block in the chain
 getLatestBlock :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m Block
 getLatestBlock = fmap last getBlockChain
 
+-- add a block to our blockchain, if it's valid
 addBlock :: MonadIO m => IORef [Block] -> Block -> m ()
 addBlock ref block = do
   chain <- liftIO $ readIORef ref
@@ -67,92 +70,99 @@ addBlock ref block = do
     else
       liftDebug "new block not valid. skipping"
 
+-- given some data, create a valid block
 mineBlock :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => String -> m Block
 mineBlock stringData = do
   lastBlock <- getLatestBlock
   mineBlockFrom lastBlock stringData
 
-replaceChain :: MonadIO m => LocalNode -> IORef [Block] -> [Block] -> m ()
-replaceChain node chainRef newChain = do
+-- if this chain is valid and longer than what we have, update it.
+replaceChain :: MonadIO m => IORef [Block] -> [Block] -> m ()
+replaceChain chainRef newChain = do
   currentChain <- liftIO $ readIORef chainRef
-  if (not . isValidChain $ newChain) || (length currentChain >= length newChain)
-    then liftDebug ("chain is not valid for updating!: " ++ (show newChain))
+  if not $ isValidChain (Prelude.head currentChain) newChain || (length currentChain >= length newChain)
+    then liftDebug $ "chain is not valid for updating!: " ++ show newChain
     else do
-      setChain <- liftIO $ atomicModifyIORef' chainRef $ \c -> (newChain, newChain)
-      liftDebug "chain replaced"
-      updatedChain <- liftIO $ readIORef chainRef
-      liftDebug ("updated chain: " ++ show updatedChain)
+      setChain <- liftIO $ atomicModifyIORef' chainRef $ const (newChain, newChain)
+      liftDebug ("updated chain: " ++ show setChain)
 
+-- ask other nodes for their chaines
 requestChain :: MonadIO m => LocalNode -> m ()
-requestChain node = liftIO $ runProcess node $ do
+requestChain localNode = liftIO $ runProcess localNode $ do
   liftDebug "requesting chain"
   P2P.nsendPeers p2pServiceName RequestChain
 
+-- sends the entire chain to all nodes in the network.
+-- receiving nodes should update if this chain is newer than what they have
 sendChain :: MonadIO m => LocalNode -> IORef [Block] -> m ()
-sendChain node chainRef = liftIO $ runProcess node $ do
+sendChain localNode chainRef = liftIO $ runProcess localNode $ do
   liftDebug "emitting chain"
   chain <- liftIO $ readIORef chainRef
   P2P.nsendPeers p2pServiceName $ ReplaceData chain
 
-runP2P port seedNode = P2P.bootstrapNonBlocking "localhost" port (maybeToList $ P2P.makeNodeId `fmap` seedNode) initRemoteTable
+runP2P port bootstrapNode = P2P.bootstrapNonBlocking "localhost" port (maybeToList $ P2P.makeNodeId `fmap` bootstrapNode) initRemoteTable
 
+-- sets up a logger to stdout as well as legion${port}.log
 initLogger :: String -> IO ()
-initLogger port = let priority = DEBUG
+initLogger port = let logPriority = DEBUG
                       format lh = return $ setFormatter lh (simpleLogFormatter "[$time : $loggername : $prio] $msg")
   in
-    streamHandler stdout priority >>= format >>= \s ->
-      fileHandler ("legion" ++ port ++ ".log") priority >>= format >>= \h ->
-        updateGlobalLogger rootLoggerName $ (setLevel priority) . (setHandlers [s, h])
+    streamHandler stdout logPriority >>= format >>= \s ->
+      fileHandler ("legion" ++ port ++ ".log") logPriority >>= format >>= \h ->
+        updateGlobalLogger rootLoggerName $ setLevel logPriority . setHandlers [s, h]
 
 main :: IO ()
 main = do
   args <- getArgs >>= \a -> case a of
-        (h:p:[])   -> return $ MainArgs h p Nothing
-        (h:p:i:[]) -> return $ MainArgs h p $ Just i
+        [h,p] -> return $ MainArgs h p Nothing
+        [h,p,i] -> return $ MainArgs h p $ Just i
+        _ -> error "Usage:\n\n$ legion-exe httpPort p2pPort [optional bootstrap p2p address]\n\n\n"
   -- the argument mostly just a convenient way to have unique log files if we run
   -- several instances locally
   _ <- initLogger $ p2pPort args
   debugM "legion" "starting"
-  (node, pid) <- runP2P (p2pPort args) (seedNode args) (return ())
+  (localNode, procId) <- runP2P (p2pPort args) (seedNode args) (return ())
   genesis <- initialBlock
   ref <- maybe (newIORef [genesis]) (const $ newIORef []) (seedNode args)
-  spockCfg <- defaultSpockCfg EmptySession PCNoDatabase (BlockChainState ref node pid)
-  _ <- async $ runSpock ((read (httpPort args) :: Int)) (spock spockCfg Main.app)
-  runProcess node $ do
+  spockCfg <- defaultSpockCfg EmptySession PCNoDatabase (BlockChainState ref localNode procId)
+  _ <- async $ runSpock (read (httpPort args) :: Int) (spock spockCfg Main.app)
+  -- wait for messages to come in from the p2p network and respond to them
+  runProcess localNode $ do
     getSelfPid >>= register p2pServiceName
     liftIO $ threadDelay 1000000
     _ <- if isJust $ seedNode args
     then do
       liftDebug "this is not the initial node, requesting a chain"
-      requestChain node
+      requestChain localNode
     else liftDebug "this is the initial node, not requesting a chain"
     forever $ do
-      message <- (expect :: Process BlockUpdate)
-      liftDebug $ "got a message..."
+      message <- expect :: Process BlockUpdate
+      liftDebug "got a message..."
       case message of
         (ReplaceData chain) -> do
           liftDebug $ "got some stuff to replace: " ++ show chain
-          replaceChain node ref chain
+          replaceChain ref chain
         (UpdateData block) -> do
           liftDebug $ "got some stuff to add: " ++ show block
           addBlock ref block
-        (RequestChain) -> do
+        RequestChain -> do
           liftDebug "got chain request"
-          sendChain node ref
+          sendChain localNode ref
 
+-- spock http endpoint
 app :: SpockM () MySession BlockChainState ()
 app = do
   get root $
     text "Legion Blockchain Node"
   post "block" $ do
-    (BlockChainState ref node _) <- getState
+    (BlockChainState ref localNode _) <- getState
     (blockString :: BlockArgs) <- jsonBody'
     liftDebug $ show blockString
     block <- mineBlock . blockBody $ blockString
     _ <- addBlock ref block
     chain <- getBlockChain
-    liftDebug chain
-    liftIO $ runProcess node $ P2P.nsendPeers p2pServiceName $ UpdateData block
+    liftDebug $ show chain
+    liftIO $ runProcess localNode $ P2P.nsendPeers p2pServiceName $ UpdateData block
     text . T.pack . show $ chain
   get "chain" $ do
     chain <- getBlockChain
