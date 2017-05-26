@@ -43,6 +43,7 @@ executable legion-exe
                      , either
                      , hslogger 
                      , binary
+                     , GenericPretty
                      , legion
 
 test-suite legion-test

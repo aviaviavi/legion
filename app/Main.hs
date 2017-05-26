@@ -16,11 +16,12 @@ import           Data.Maybe
 import           GHC.Generics
 import           Lib
 import           System.Environment               (getArgs)
-import           System.IO                        ( stdout)
+import           System.IO                        (stdout)
 import           System.Log.Formatter
 import           System.Log.Handler               (setFormatter)
 import           System.Log.Handler.Simple
 import           System.Log.Logger
+import           Text.PrettyPrint.GenericPretty
 import           Web.Spock
 import           Web.Spock.Config
 
@@ -29,6 +30,7 @@ import qualified Data.Binary                      as B
 import qualified Data.Text                        as T
 
 data MySession = EmptySession
+instance Out Block
 
 -- the state for our application, to be used as a spock state
 data BlockChainState = BlockChainState { blockChainState :: IORef [Block]
@@ -37,10 +39,12 @@ data BlockChainState = BlockChainState { blockChainState :: IORef [Block]
                                        } deriving (Generic)
 
 -- args for running the main application
-data MainArgs = MainArgs { httpPort  :: String
-                         , p2pPort   :: String
-                         , seedNode  :: Maybe String
+data MainArgs = MainArgs { httpPort :: String
+                         , p2pPort  :: String
+                         , seedNode :: Maybe String
                          }
+
+
 
 -- ADT for data that will be sent across the P2P network
 data BlockUpdate = UpdateData Block | ReplaceData [Block] | RequestChain deriving (Generic)
@@ -166,7 +170,7 @@ app = do
     chain <- getBlockChain
     liftDebug $ show chain
     liftIO $ runProcess localNode $ P2P.nsendPeers p2pServiceName $ UpdateData block
-    text . T.pack . show $ chain
+    text . T.pack . pretty $ chain
   get "chain" $ do
     chain <- getBlockChain
-    text . T.pack . show $ chain
+    text . T.pack . pretty $ chain
