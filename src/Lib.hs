@@ -46,11 +46,10 @@ addHashToBlock block = block { blockHash = calculateBlockHash block }
 -- a hardcoded initial block, we need this to make sure all
 -- nodes have the same starting point, so we have a hard coded
 -- frame of reference to detect validity
-initialBlock :: IO Block
+initialBlock :: Block
 initialBlock = do
-  time <- epoch
-  let block = Block 0 "0" time "initial data" ""
-  return $ block { blockHash = calculateBlockHash block }
+  let block = Block 0 "0" 0 "initial data" ""
+  block { blockHash = calculateBlockHash block }
 
 -- a new block is valid if its index is 1 higher, its
 -- previous hash points to our last block, and its hash is computed
@@ -64,13 +63,13 @@ isValidNewBlock prev next
 
 -- a chain is valid if it starts with our hardcoded initial
 -- block and every block is valid with respect to the previous
-isValidChain :: Block -> [Block] -> Bool
-isValidChain initial chain = case chain of
+isValidChain :: [Block] -> Bool
+isValidChain chain = case chain of
   [] -> True
-  [x] -> x == initial
+  [x] -> x == initialBlock
   (x:xs) ->
     let blockPairs = zip chain xs in
-      x == initial &&
+      x == initialBlock &&
       all (uncurry isValidNewBlock) blockPairs
 
 

@@ -15,7 +15,7 @@ unitTests =
 testValidChain :: IO ()
 testValidChain  = do
   print "running test!"
-  b <- initialBlock
+  let b = initialBlock
   assertBool "block eq" $ b == b
   assertBool "empty chains are valid" $ isValidChain b []
   assertBool "base chain is valid" $ isValidChain b [b]

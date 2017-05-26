@@ -80,7 +80,7 @@ mineBlock stringData = do
 replaceChain :: MonadIO m => IORef [Block] -> [Block] -> m ()
 replaceChain chainRef newChain = do
   currentChain <- liftIO $ readIORef chainRef
-  if not $ isValidChain (Prelude.head currentChain) newChain || (length currentChain >= length newChain)
+  if not $ isValidChain newChain || (length currentChain >= length newChain)
     then liftDebug $ "chain is not valid for updating!: " ++ show newChain
     else do
       setChain <- liftIO $ atomicModifyIORef' chainRef $ const (newChain, newChain)
@@ -122,8 +122,7 @@ main = do
   _ <- initLogger $ p2pPort args
   debugM "legion" "starting"
   (localNode, procId) <- runP2P (p2pPort args) (seedNode args) (return ())
-  genesis <- initialBlock
-  ref <- maybe (newIORef [genesis]) (const $ newIORef []) (seedNode args)
+  ref <- maybe (newIORef [initialBlock]) (const $ newIORef []) (seedNode args)
   spockCfg <- defaultSpockCfg EmptySession PCNoDatabase (BlockChainState ref localNode procId)
   _ <- async $ runSpock (read (httpPort args) :: Int) (spock spockCfg Main.app)
   -- wait for messages to come in from the p2p network and respond to them
