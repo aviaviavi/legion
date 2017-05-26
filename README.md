@@ -11,14 +11,14 @@ from github, you'll need to mark it executable by running:
 $ chmod +x legion-exe
 ```
 
-Usage:
+### Usage:
 
 ```
 $ stack exec legion-exe [http port] [p2p port] [optional: `seedhost:seedP2PPort`]
 
 ```
 
-Examples:
+### Examples:
 
 ```
 $ stack exec legion-exe 8001 9001
