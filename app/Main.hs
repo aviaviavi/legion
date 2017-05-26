@@ -28,23 +28,27 @@ import qualified Control.Distributed.Backend.P2P  as P2P
 import qualified Data.Binary                      as B
 import qualified Data.Text                        as T
 
-type Chain = [Block]
 data MySession = EmptySession
+
+-- the state for our application, to be used as a spock state
 data BlockChainState = BlockChainState { blockChainState :: IORef [Block]
                                        , node            :: LocalNode
                                        , pid             :: ProcessId
                                        } deriving (Generic)
 
+-- args for running the main application
 data MainArgs = MainArgs { httpPort  :: String
                          , p2pPort   :: String
                          , seedNode  :: Maybe String
                          }
 
+-- ADT for data that will be sent across the P2P network
 data BlockUpdate = UpdateData Block | ReplaceData [Block] | RequestChain deriving (Generic)
 instance B.Binary BlockUpdate
 
 liftDebug :: (MonadIO m) => String -> m ()
 liftDebug str = liftIO $ debugM "legion" (show str)
+
 p2pServiceName :: String
 p2pServiceName = "updateservice"
 

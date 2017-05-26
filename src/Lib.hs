@@ -72,7 +72,6 @@ isValidChain chain = case chain of
       x == initialBlock &&
       all (uncurry isValidNewBlock) blockPairs
 
-
 -- return the next block given a previous block and some data to put in it
 mineBlockFrom :: (MonadIO m) => Block -> String -> m Block
 mineBlockFrom lastBlock stringData = do

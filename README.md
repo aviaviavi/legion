@@ -1,6 +1,6 @@
 # Legion - a simple blockchain implementation
 
-A simple blockchain server inspired by [naivechain](https://github.com/lhartikk/naivechain), but written in Haskell. Spinning up several
+An as-simple-as-possible blockchain server inspired by [naivechain](https://github.com/lhartikk/naivechain), but written in Haskell. Spinning up several
 Legion nodes creates a peer to peer network that syncronizes the block chain across the network. 
 
 Prereqs: To compile from source, you'll need [stack](https://docs.haskellstack.org/en/stable/README/).
