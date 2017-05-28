@@ -17,8 +17,8 @@ testValidChain  = do
   print "running test!"
   let b = initialBlock
   assertBool "block eq" $ b == b
-  assertBool "empty chains are valid" $ isValidChain b []
-  assertBool "base chain is valid" $ isValidChain b [b]
-  assertBool "two init blocks are invalid" $ not $ isValidChain  b [b, b]
+  assertBool "empty chains are valid" $ isValidChain []
+  assertBool "base chain is valid" $ isValidChain [b]
+  assertBool "two init blocks are invalid" $ not $ isValidChain [b, b]
   goodBlock <- mineBlockFrom b "asdfasdf"
-  assertBool "actually good chain" $ isValidChain b [b, goodBlock]
+  assertBool "actually good chain" $ isValidChain [b, goodBlock]
