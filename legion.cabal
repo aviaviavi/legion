@@ -23,6 +23,7 @@ library
                      , mtl
                      , text
                      , binary
+                     , GenericPretty
                      , time
 
 executable legion-exe

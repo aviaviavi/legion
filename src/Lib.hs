@@ -8,10 +8,11 @@ module Lib where
 import           Control.Monad.Trans
 import           Crypto.Hash.SHA256
 import           Data.Aeson
-import           Data.ByteString.Char8 (pack, unpack)
+import           Data.Binary
+import           Data.ByteString.Char8          (pack, unpack)
 import           Data.Time.Clock.POSIX
 import           GHC.Generics
-import Data.Binary
+import           Text.PrettyPrint.GenericPretty
 
 -- the main data type for our blockchain
 data Block = Block { index        :: Int
@@ -28,6 +29,7 @@ newtype BlockArgs = BlockArgs{blockBody :: String}
 instance ToJSON BlockArgs
 instance FromJSON BlockArgs
 instance Binary Block
+instance Out Block
 
 -- unix timestamp as an int
 epoch :: IO Int
@@ -37,7 +39,7 @@ hashString :: String -> String
 hashString = unpack . hash . pack
 
 calculateBlockHash :: Block -> String
-calculateBlockHash (Block i p t b _)  = concatMap hashString [show i, p, show t, b]
+calculateBlockHash (Block i p t b _)  = hashString $ concat [show i, p, show t, b]
 
 -- returns a copy of the block with the hash set
 addHashToBlock :: Block -> Block

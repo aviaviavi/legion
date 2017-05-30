@@ -30,7 +30,6 @@ import qualified Data.Binary                      as B
 import qualified Data.Text                        as T
 
 data MySession = EmptySession
-instance Out Block
 
 -- the state for our application, to be used as a spock state
 data BlockChainState = BlockChainState { blockChainState :: IORef [Block]
@@ -43,8 +42,6 @@ data MainArgs = MainArgs { httpPort :: String
                          , p2pPort  :: String
                          , seedNode :: Maybe String
                          }
-
-
 
 -- ADT for data that will be sent across the P2P network
 data BlockUpdate = UpdateData Block | ReplaceData [Block] | RequestChain deriving (Generic)
@@ -124,11 +121,11 @@ main = do
   args <- getArgs >>= \a -> case a of
         [h,p] -> return $ MainArgs h p Nothing
         [h,p,i] -> return $ MainArgs h p $ Just i
-        _ -> error "Usage:\n\n$ legion-exe httpPort p2pPort [optional bootstrap p2p address]\n\n\n"
+        _ -> fail "Usage:\n\n$ legion-exe httpPort p2pPort [optional bootstrap p2p address]\n\n\n"
   -- the argument mostly just a convenient way to have unique log files if we run
   -- several instances locally
   _ <- initLogger $ p2pPort args
-  debugM "legion" "starting"
+  liftDebug "starting"
   (localNode, procId) <- runP2P (p2pPort args) (seedNode args) (return ())
   ref <- maybe (newIORef [initialBlock]) (const $ newIORef []) (seedNode args)
   spockCfg <- defaultSpockCfg EmptySession PCNoDatabase (BlockChainState ref localNode procId)
