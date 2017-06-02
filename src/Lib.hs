@@ -6,6 +6,10 @@
 module Lib where
 
 import           Control.Monad.Trans
+import           Crypto.Hash                    ( Digest
+                                                , SHA256
+                                                , digestFromByteString
+                                                )
 import           Crypto.Hash.SHA256
 import           Data.Aeson
 import           Data.Binary
@@ -35,8 +39,15 @@ instance Out Block
 epoch :: IO Int
 epoch = round `fmap` getPOSIXTime
 
+fromJust :: Maybe a -> a
+fromJust Nothing = error "Hash error"
+fromJust (Just x) = x
+
+sha256 :: String -> Maybe (Digest SHA256)
+sha256 = digestFromByteString . hash . pack
+
 hashString :: String -> String
-hashString = unpack . hash . pack
+hashString = show . fromJust . sha256
 
 calculateBlockHash :: Block -> String
 calculateBlockHash (Block i p t b _)  = hashString $ concat [show i, p, show t, b]
