@@ -39,13 +39,18 @@ instance Out Block
 epoch :: IO Int
 epoch = round `fmap` getPOSIXTime
 
+-- used to unwrap hex digests that come
+-- from the sha256 function below
 fromJust :: Maybe a -> a
 fromJust Nothing = error "Hash error"
 fromJust (Just x) = x
 
+-- hashes a string and returns a hex digest
 sha256 :: String -> Maybe (Digest SHA256)
 sha256 = digestFromByteString . hash . pack
 
+-- abstracted hash function that takes a string
+-- to hash and returns a hex string
 hashString :: String -> String
 hashString = show . fromJust . sha256
 
