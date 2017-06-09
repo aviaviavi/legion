@@ -13,7 +13,7 @@ import           Crypto.Hash                    ( Digest
 import           Crypto.Hash.SHA256
 import           Data.Aeson
 import           Data.Binary
-import           Data.ByteString.Char8          (pack, unpack)
+import           Data.ByteString.Char8          (pack)
 import           Data.Time.Clock.POSIX
 import           GHC.Generics
 import           Text.PrettyPrint.GenericPretty
@@ -39,12 +39,6 @@ instance Out Block
 epoch :: IO Int
 epoch = round `fmap` getPOSIXTime
 
--- used to unwrap hex digests that come
--- from the sha256 function below
-fromJust :: Maybe a -> a
-fromJust Nothing = error "Hash error"
-fromJust (Just x) = x
-
 -- hashes a string and returns a hex digest
 sha256 :: String -> Maybe (Digest SHA256)
 sha256 = digestFromByteString . hash . pack
@@ -52,7 +46,7 @@ sha256 = digestFromByteString . hash . pack
 -- abstracted hash function that takes a string
 -- to hash and returns a hex string
 hashString :: String -> String
-hashString = show . fromJust . sha256
+hashString = maybe (error "Something went wrong generating a hash") show . sha256
 
 calculateBlockHash :: Block -> String
 calculateBlockHash (Block i p t b _)  = hashString $ concat [show i, p, show t, b]
