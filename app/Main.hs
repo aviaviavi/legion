@@ -85,7 +85,7 @@ mineBlock stringData = do
 replaceChain :: MonadIO m => IORef [Block] -> [Block] -> m ()
 replaceChain chainRef newChain = do
   currentChain <- liftIO $ readIORef chainRef
-  if not $ isValidChain newChain || (length currentChain >= length newChain)
+  if (not . isValidChain) newChain || length currentChain >= length newChain
     then liftDebug $ "chain is not valid for updating!: " ++ show newChain
     else do
       setChain <- liftIO $ atomicModifyIORef' chainRef $ const (newChain, newChain)
