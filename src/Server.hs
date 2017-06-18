@@ -132,7 +132,7 @@ sendChain localNode chainRef = liftIO $ runProcess localNode $ do
   chain <- liftIO $ readIORef chainRef
   P2P.nsendPeers p2pServiceName $ ReplaceData chain
 
-runP2P port bootstrapNode = P2P.bootstrapNonBlocking "localhost" port (maybeToList $ P2P.makeNodeId `fmap` bootstrapNode) initRemoteTable
+runP2P port bootstrapNode = P2P.bootstrapNonBlocking "127.0.0.1" port (maybeToList $ P2P.makeNodeId `fmap` bootstrapNode) initRemoteTable
 
 -- spock http endpoint
 app :: SpockM () MySession BlockChainState ()

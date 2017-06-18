@@ -42,7 +42,7 @@ testBasicSync =
       args = MainArgs (head webPorts) (head p2pPorts) Nothing
       args' =
         MainArgs (last webPorts) (last p2pPorts) $
-        Just ("localhost:" ++ head p2pPorts)
+        Just ("127.0.0.1:" ++ head p2pPorts)
   in do _ <- async $ runLegion args
         _ <- async $ runLegion args'
         -- wait to let the servers initialize
