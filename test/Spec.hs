@@ -9,6 +9,7 @@ import           Network.HTTP
 import           Server
 import           Test.Tasty
 import           Test.Tasty.HUnit
+import Text.Printf
 
 main :: IO ()
 main = defaultMain tests
@@ -52,7 +53,7 @@ testBasicSync =
         _ <-
           simpleHTTP
             (postRequestWithBody
-               "http://127.0.0.1:8001/block"
+               (localAPI (head webPorts) "block")
                "application/json"
                blockArgs) >>=
           fmap (take 10000) . getResponseBody
@@ -61,12 +62,15 @@ testBasicSync =
         _ <-
           simpleHTTP
             (postRequestWithBody
-               "http://127.0.0.1:8002/block"
+               (localAPI (last webPorts) "block")
                "application/json"
                blockArgs)
         threadDelay 1000000
         _ <- allChainsHaveLength webPorts 3
         return ()
+
+localAPI :: String -> String -> String
+localAPI = printf "http://127.0.0.1:%s/%s"
 
 allChainsHaveLength :: [String] -> Int -> IO ()
 allChainsHaveLength ports len = do
@@ -76,7 +80,7 @@ allChainsHaveLength ports len = do
 getChainLength :: String -> IO Int
 getChainLength serverPort = do
   body <-
-    simpleHTTP (getRequest ("http://127.0.0.1:" ++ serverPort ++ "/chain")) >>=
+    simpleHTTP (getRequest (localAPI serverPort "chain")) >>=
     fmap (take 10000) . getResponseBody
   let parsedBody = read body :: [Block]
   print parsedBody
