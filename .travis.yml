@@ -37,4 +37,4 @@ install:
 
 script:
 # Build the package, its tests, and its docs and run the tests
-- stack --no-terminal test --haddock --skip-ghc-check --no-haddock-deps
+- stack --no-terminal test --skip-ghc-check
