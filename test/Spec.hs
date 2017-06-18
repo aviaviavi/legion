@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Concurrent         (threadDelay)
-import           Data.ByteString.Lazy.Char8          (unpack)
 import           Control.Concurrent.Async
+import           Data.Aeson
+import           Data.ByteString.Lazy.Char8 (unpack)
 import           Lib
 import           Network.HTTP
 import           Server
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import           Data.Aeson
 
 main :: IO ()
 main = defaultMain tests
@@ -22,7 +22,7 @@ unitTests =
 
 integrationTests :: TestTree
 integrationTests =
-  testGroup "Integration Test" [testCase "valid chain" testBasicSync]
+  testGroup "Integration Test" [testCase "basic chain syncing" testBasicSync]
 
 testValidChain :: IO ()
 testValidChain = do
