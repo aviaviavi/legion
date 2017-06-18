@@ -26,7 +26,7 @@ data Block = Block { index        :: Int
                    , blockData    :: String
                    , nonce        :: Int
                    , blockHash    :: String
-                   } deriving (Show, Eq, Generic)
+                   } deriving (Show, Read, Eq, Generic)
 
 -- http params to add a block to the chain
 newtype BlockArgs = BlockArgs{blockBody :: String}
@@ -34,6 +34,8 @@ newtype BlockArgs = BlockArgs{blockBody :: String}
 
 instance ToJSON BlockArgs
 instance FromJSON BlockArgs
+instance ToJSON Block
+instance FromJSON Block
 instance Binary Block
 instance Out Block
 
@@ -128,3 +130,4 @@ mineBlockFrom lastBlock stringData = do
                     , blockHash    = "will be changed"
                     }
   return . addHashToBlock $ block { nonce = findNonce block }
+
