@@ -38,3 +38,10 @@ install:
 script:
 # Build the package, its tests, and its docs and run the tests
 - stack --no-terminal test --skip-ghc-check
+
+notifications:
+  email:
+    recipients:
+      - avipress@gmail.com
+    on_success: change # default: change
+    on_failure: always # default: always
