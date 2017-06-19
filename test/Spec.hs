@@ -9,7 +9,7 @@ import           Network.HTTP
 import           Server
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import Text.Printf
+import           Text.Printf
 
 main :: IO ()
 main = defaultMain tests
