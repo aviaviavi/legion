@@ -91,7 +91,7 @@ replaceChain chainRef newChain = do
       setChain <- liftIO $ atomicModifyIORef' chainRef $ const (newChain, newChain)
       liftDebug ("updated chain: " ++ show setChain)
 
--- ask other nodes for their chaines
+-- ask other nodes for their chains
 requestChain :: MonadIO m => LocalNode -> m ()
 requestChain localNode = liftIO $ runProcess localNode $ do
   liftDebug "requesting chain"
