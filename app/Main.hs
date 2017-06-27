@@ -53,13 +53,13 @@ liftDebug str = liftIO $ debugM "legion" (show str)
 p2pServiceName :: String
 p2pServiceName = "updateservice"
 
--- retrive the current block chain
+-- retrieve the current block chain
 getBlockChain :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m [Block]
 getBlockChain = do
   (BlockChainState chain _ _) <- getState
   liftIO $ readIORef chain
 
--- retrive the most recent block in the chain
+-- retrieve the most recent block in the chain
 getLatestBlock :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m Block
 getLatestBlock = fmap last getBlockChain
 
