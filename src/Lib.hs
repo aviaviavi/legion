@@ -130,4 +130,3 @@ mineBlockFrom lastBlock stringData = do
                     , blockHash    = "will be changed"
                     }
   return . addHashToBlock $ block { nonce = findNonce block }
-
