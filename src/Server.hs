@@ -80,13 +80,13 @@ runLegion args = do
           liftDebug "got chain request"
           sendChain localNode ref
 
--- retrive the current block chain
+-- retrieve the current block chain
 getBlockChain :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m [Block]
 getBlockChain = do
   (BlockChainState chain _ _) <- getState
   liftIO $ readIORef chain
 
--- retrive the most recent block in the chain
+-- retrieve the most recent block in the chain
 getLatestBlock :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m Block
 getLatestBlock = fmap last getBlockChain
 
@@ -118,7 +118,7 @@ replaceChain chainRef newChain = do
       setChain <- liftIO $ atomicModifyIORef' chainRef $ const (newChain, newChain)
       liftDebug ("updated chain: " ++ show setChain)
 
--- ask other nodes for their chaines
+-- ask other nodes for their chains
 requestChain :: MonadIO m => LocalNode -> m ()
 requestChain localNode = liftIO $ runProcess localNode $ do
   liftDebug "requesting chain"
