@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE RankNTypes          #-}
 module Server where
 
 import           Control.Concurrent               (threadDelay)
@@ -80,14 +81,20 @@ runLegion args = do
           liftDebug "got chain request"
           sendChain localNode ref
 
+-- Type alias
+type Get stateType returnType
+  = forall m.
+  (SpockState m ~ stateType, MonadIO m, HasSpock m)
+  => m returnType
+
 -- retrieve the current block chain
-getBlockChain :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m [Block]
+getBlockChain :: Get BlockChainState [Block]
 getBlockChain = do
   (BlockChainState chain _ _) <- getState
   liftIO $ readIORef chain
 
 -- retrieve the most recent block in the chain
-getLatestBlock :: (SpockState m ~ BlockChainState, MonadIO m, HasSpock m) => m Block
+getLatestBlock :: Get BlockChainState Block
 getLatestBlock = fmap last getBlockChain
 
 -- add a block to our blockchain, if it's valid
